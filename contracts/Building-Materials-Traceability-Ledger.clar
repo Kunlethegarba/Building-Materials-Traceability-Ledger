@@ -36,6 +36,16 @@
 
 (define-data-var last-token-id uint u0)
 
+(define-map transfer-requests
+    uint
+    {
+        from: principal,
+        to: principal,
+        timestamp: uint,
+        pending: bool
+    }
+)
+
 (define-public (register-manufacturer (name (string-ascii 64)) (license-number (string-ascii 32)))
     (let
         (
@@ -136,4 +146,51 @@
 
 (define-read-only (get-certifier-details (certifier principal))
     (ok (unwrap! (map-get? certifier-registry certifier) (err u404)))
+)
+
+(define-public (initiate-transfer (token-id uint) (recipient principal))
+    (let
+        (
+            (current-owner (unwrap! (nft-get-owner? material-batch token-id) (err u404)))
+            (current-block stacks-block-height)
+        )
+        (asserts! (is-eq tx-sender current-owner) (err u403))
+        (ok (map-set transfer-requests token-id {
+            from: current-owner,
+            to: recipient,
+            timestamp: current-block,
+            pending: true
+        }))
+    )
+)
+
+(define-public (accept-transfer (token-id uint))
+    (let
+        (
+            (transfer-data (unwrap! (map-get? transfer-requests token-id) (err u404)))
+            (recipient (get to transfer-data))
+            (sender (get from transfer-data))
+        )
+        (asserts! (is-eq tx-sender recipient) (err u403))
+        (asserts! (get pending transfer-data) (err u400))
+        (try! (nft-transfer? material-batch token-id sender recipient))
+        (ok (map-set transfer-requests token-id 
+            (merge transfer-data {pending: false})))
+    )
+)
+
+(define-public (cancel-transfer (token-id uint))
+    (let
+        (
+            (transfer-data (unwrap! (map-get? transfer-requests token-id) (err u404)))
+            (sender (get from transfer-data))
+        )
+        (asserts! (is-eq tx-sender sender) (err u403))
+        (asserts! (get pending transfer-data) (err u400))
+        (ok (map-delete transfer-requests token-id))
+    )
+)
+
+(define-read-only (get-transfer-status (token-id uint))
+    (ok (map-get? transfer-requests token-id))
 )
