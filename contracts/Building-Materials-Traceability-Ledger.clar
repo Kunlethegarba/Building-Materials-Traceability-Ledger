@@ -194,3 +194,20 @@
 (define-read-only (get-transfer-status (token-id uint))
     (ok (map-get? transfer-requests token-id))
 )
+
+(define-map batch-recalls uint bool)
+
+(define-public (recall-batch (token-id uint))
+    (let
+        (
+            (batch-data (unwrap! (map-get? material-records token-id) (err u404)))
+            (manufacturer (get manufacturer batch-data))
+        )
+        (asserts! (is-eq tx-sender manufacturer) (err u403))
+        (ok (map-set batch-recalls token-id true))
+    )
+)
+
+(define-read-only (is-batch-recalled (token-id uint))
+    (default-to false (map-get? batch-recalls token-id))
+)
