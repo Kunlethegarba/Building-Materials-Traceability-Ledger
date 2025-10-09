@@ -211,3 +211,27 @@
 (define-read-only (is-batch-recalled (token-id uint))
     (default-to false (map-get? batch-recalls token-id))
 )
+
+(define-data-var last-report-id uint u0)
+
+(define-map inspection-reports {token-id: uint, report-id: uint} {inspector: principal, inspection-date: uint, findings: (string-ascii 256), passed: bool})
+
+(define-public (add-inspection-report (token-id uint) (findings (string-ascii 256)) (passed bool))
+    (let
+        (
+            (report-id (+ (var-get last-report-id) u1))
+        )
+        (asserts! (is-some (map-get? material-records token-id)) (err u404))
+        (var-set last-report-id report-id)
+        (ok (map-set inspection-reports {token-id: token-id, report-id: report-id} {
+            inspector: tx-sender,
+            inspection-date: stacks-block-height,
+            findings: findings,
+            passed: passed
+        }))
+    )
+)
+
+(define-read-only (get-inspection-report (token-id uint) (report-id uint))
+    (ok (unwrap! (map-get? inspection-reports {token-id: token-id, report-id: report-id}) (err u404)))
+)
