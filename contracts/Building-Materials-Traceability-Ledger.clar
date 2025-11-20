@@ -215,6 +215,9 @@
 (define-data-var last-report-id uint u0)
 
 (define-map inspection-reports {token-id: uint, report-id: uint} {inspector: principal, inspection-date: uint, findings: (string-ascii 256), passed: bool})
+(define-map batch-events {token-id: uint, event-id: uint} {event-type: (string-ascii 32), details: (string-ascii 128), timestamp: uint, logged-by: principal})
+
+(define-data-var last-event-id uint u0)
 
 (define-public (add-inspection-report (token-id uint) (findings (string-ascii 256)) (passed bool))
     (let
@@ -234,4 +237,22 @@
 
 (define-read-only (get-inspection-report (token-id uint) (report-id uint))
     (ok (unwrap! (map-get? inspection-reports {token-id: token-id, report-id: report-id}) (err u404)))
+)
+
+(define-public (log-supply-chain-event (token-id uint) (event-type (string-ascii 32)) (details (string-ascii 128)))
+    (begin
+        (asserts! (is-some (map-get? material-records token-id)) (err u404))
+        (let
+            (
+                (event-id (+ (var-get last-event-id) u1))
+            )
+            (var-set last-event-id event-id)
+            (ok (map-set batch-events {token-id: token-id, event-id: event-id} {
+                event-type: event-type,
+                details: details,
+                timestamp: stacks-block-height,
+                logged-by: tx-sender
+            }))
+        )
+    )
 )
